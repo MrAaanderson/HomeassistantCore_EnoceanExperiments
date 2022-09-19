@@ -43,6 +43,7 @@ SENSOR_TYPE_HUMIDITY = "humidity"
 SENSOR_TYPE_POWER = "powersensor"
 SENSOR_TYPE_TEMPERATURE = "temperature"
 SENSOR_TYPE_WINDOWHANDLE = "windowhandle"
+SENSOR_TYPE_CONTACT = "singleinputcontact"
 
 
 @dataclass
@@ -96,6 +97,13 @@ SENSOR_DESC_WINDOWHANDLE = EnOceanSensorEntityDescription(
     unique_id=lambda dev_id: f"{combine_hex(dev_id)}-{SENSOR_TYPE_WINDOWHANDLE}",
 )
 
+SENSOR_DESC_CONTACT = EnOceanSensorEntityDescription(
+    key=SENSOR_TYPE_CONTACT,
+    name="ContactSensor",
+    icon="mdi:electric-switch",
+    unique_id=lambda dev_id: f"{combine_hex(dev_id)}-{SENSOR_TYPE_CONTACT}",
+)
+
 
 PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
     {
@@ -147,6 +155,9 @@ def setup_platform(
 
     elif sensor_type == SENSOR_TYPE_WINDOWHANDLE:
         entities = [EnOceanWindowHandle(dev_id, dev_name, SENSOR_DESC_WINDOWHANDLE)]
+        
+    elif sensor_type == SENSOR_TYPE_CONTACT:
+        entities = [EnOceanContactSensor(dev_id, dev_name, SENSOR_DESC_CONTACT)]
 
     if entities:
         add_entities(entities)
@@ -280,5 +291,23 @@ class EnOceanWindowHandle(EnOceanSensor):
             self._attr_native_value = STATE_OPEN
         if action == 0x05:
             self._attr_native_value = "tilt"
+            
+class EnOceanContactSensor(EnOceanSensor):
+    """Representation of an EnOcean single input contact.
+
+    EEPs (EnOcean Equipment Profiles):
+    - D5-00-01 (Contacts and Switches / Single input contact)
+    """
+
+    def value_changed(self, packet):
+        """Update the internal state of the sensor."""
+        if packet.data[0] != 0xd5:
+            return
+        action = packet.data[1]
+
+        if action == 0x09:
+            self._attr_native_value = STATE_CLOSED
+        if action == 0x08:
+            self._attr_native_value = STATE_OPEN
 
         self.schedule_update_ha_state()
